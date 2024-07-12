@@ -1,14 +1,11 @@
-use pyo3::prelude::*;
-use pyo3::types::PyDict;
-use numpy::{PyArray1, PyArray2};
 use ndarray::{Array1, Array2, ArrayView2};
 use numpy::IntoPyArray;
+use numpy::{PyArray1, PyArray2};
+use pyo3::prelude::*;
 use pyo3::prepare_freethreaded_python;
+use pyo3::types::PyDict;
 
-use std::{
-    io::{self, BufReader}
-};
-
+use std::io::{self, BufReader};
 
 pub fn kde_computation_py(
     data: &Vec<f64>,
@@ -17,14 +14,14 @@ pub fn kde_computation_py(
 ) -> io::Result<()> {
     // Initialize the Python interpreter
     prepare_freethreaded_python();
-    
+
     Python::with_gil(|py| {
         // Import the Python module and function
         let module = PyModule::from_code(
             py,
-            include_str!("/mnt/scratch4/zahra/kde_function/src/2D_kde_function.py"),
+            include_str!("2D_kde_function.py"),
             "2D_kde_function",
-            "/mnt/scratch4/zahra/kde_function/src/2D_kde_function.py",
+            "2D_kde_function.py",
         )?;
         let function = module.getattr("calculate_kde")?;
         println!("data length is: {:?}", data.len());
@@ -50,3 +47,4 @@ pub fn kde_computation_py(
         Ok(())
     })
 }
+
