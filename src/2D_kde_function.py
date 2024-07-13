@@ -100,7 +100,7 @@ def calculate_kde(data, weights):
     #print("weight length: {}".format(len(weights)))
     #print("prob length: {}".format(len(output)))
     #print("output:")
-    print(output)
+    #print(output)
 
     return output
 

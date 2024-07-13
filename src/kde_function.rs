@@ -11,7 +11,7 @@ pub fn kde_computation_py(
     data: &Vec<f64>,
     weight: &Vec<f64>,
     //store: &mut InMemoryAlignmentStore,
-) -> io::Result<()> {
+) -> io::Result<Vec<f64>> {
     // Initialize the Python interpreter
     prepare_freethreaded_python();
 
@@ -43,8 +43,8 @@ pub fn kde_computation_py(
         println!("it is before python function");
         let result: Py<PyArray1<f64>> = function.call1((data_py, weights_py))?.extract()?;
         //println!("result length: {:?}", result.as_ref().len());
-
-        Ok(())
+        let r: Vec<f64> = result.extract(py)?;
+        Ok(r)
     })
 }
 
