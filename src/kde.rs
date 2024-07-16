@@ -1,9 +1,18 @@
+//! The top-level module for the simple 2D KDE crate.  This crate (currently) makes many
+//! simplifying assumptions.
+//!
+//!  - All input locations are integers
+//!  - The only supported kernel is a symmetric Gaussian
+//!  - XXX
+//!
+
 use core::f64::consts::PI;
 use ndarray::prelude::*;
 use ndarray::Array2;
 
 use std::io::{self, BufReader};
 
+/// Holds relevant information
 /// Assumes that the bin width is the
 /// same in both the x and y dimensions.
 pub struct KDEGrid {
@@ -22,7 +31,7 @@ pub struct KDEModel {
     width: usize,
     height: usize,
     bin_width: usize,
-    data: Array2<f64>,
+    pub data: Array2<f64>,
 }
 
 impl KDEModel {
@@ -34,9 +43,16 @@ impl KDEModel {
 impl std::ops::Index<(usize, usize)> for KDEModel {
     type Output = f64;
     fn index(&self, index: (usize, usize)) -> &Self::Output {
-        let bx = index.0 / self.bin_width;
-        let by = index.1 / self.bin_width;
-        &self.data[[bx, by]]
+        let blx = index.0 / self.bin_width;
+        let bly = index.1 / self.bin_width;
+        /*
+        println!(
+            "d = {}",
+            ((index.0 as f64 - ((blx * self.bin_width) as f64 + 5.)).powi(2)
+                + (index.1 as f64 - ((bly * self.bin_width) as f64 + 5.)).powi(2))
+            .sqrt()
+        );*/
+        &self.data[[blx, bly]]
     }
 }
 
@@ -50,8 +66,8 @@ impl KDEGrid {
             }
         };
 
-        let num_x_bins = calc_num_bins(width, bin_width);
-        let num_y_bins = calc_num_bins(height, bin_width);
+        let num_x_bins = calc_num_bins(width, bin_width) + 1;
+        let num_y_bins = calc_num_bins(height, bin_width) + 1;
 
         KDEGrid {
             width,
@@ -73,6 +89,20 @@ impl KDEGrid {
         }
 
         let mut grid = Self::new((max_x + 1) as usize, (max_y + 1) as usize, bin_width);
+        /*
+        let (x_cells, y_cells) = grid.data.dim();
+        let x_cells = x_cells as i64;
+        let y_cells = y_cells as i64;
+
+        let bwf = grid.bin_width as f64;
+        for i in 0..x_cells {
+            let k1 = bwf * i as f64 + ((bwf) / 2.0);
+            for j in 0..y_cells {
+                let k2 = bwf * j as f64 + ((bwf) / 2.0);
+                println!("[{}, {}]", k1, k2);
+            }
+        }*/
+
         for i in 0..n {
             grid.add_observation(data[[i, 0]] as usize, data[[i, 1]] as usize, weights[i]);
         }
@@ -90,43 +120,37 @@ impl KDEGrid {
 
         let bandwidth = 1.0_f64;
         let bwf = self.bin_width as f64;
-        let radius_x = bwf;
-        let kernel_norm = 1.0 / (2.0 * PI * bandwidth.powi(2)).sqrt();
-        let half_width = 1_i64;
+        let half_bin_width = bwf / 2.0;
+
+        // NOTE: missing sqrt below --- currently to match Python impl
+        let kernel_norm = 1.0 / (2.0 * PI * bandwidth.powi(2));
+        let half_width = 10_i64;
         for i1 in (0.max(bx - half_width))..(x_cells.min(bx + half_width)) {
-            let k1 = bwf * i1 as f64 + ((bwf) / 2.0);
+            let k1 = bwf * i1 as f64 + half_bin_width;
             for j1 in (0.max(by - half_width))..(y_cells.min(by + half_width)) {
-                let k2 = bwf * j1 as f64 + ((bwf) / 2.0);
+                let k2 = bwf * j1 as f64 + half_bin_width;
                 //println!("({}, {}) to ({}, {})", x, y, k1, k2);
 
                 let dx = k1 - x as f64;
                 let dy = k2 - y as f64;
                 let distance_sq = dx * dx + dy * dy;
-                let distance = distance_sq.sqrt();
 
-                let dweight = w; //self.data[[i1 as usize, j1 as usize]];
-
-                //if dx.abs() <= (10.0 * radius_x) as f64
-                //&& dy.abs() <= (10.0 * radius_y) as f64
-                //if distance <= 200.0 * radius_x {
-                let contrib =
-                    dweight * kernel_norm * (-distance_sq / (2.0 * bandwidth.powi(2))).exp();
-                self.kde_matrix[[i1 as usize, j1 as usize]] += contrib;
-                //}
+                let dweight = w;
+                if distance_sq.sqrt() < 20.0 {
+                    let contrib = dweight * (-distance_sq / 2.0).exp() * kernel_norm;
+                    self.kde_matrix[[i1 as usize, j1 as usize]] += contrib;
+                }
             }
         }
-        //sum / ((2.0 * PI * bandwidth.powi(2)).sqrt())
-        // self.data[[bx, by]] += w;
     }
 
     pub fn evaluate_kde(&mut self) -> anyhow::Result<KDEModel> {
-        println!("{:?}", self.kde_matrix);
-        println!("rust kde_sum = {:?}", self.kde_matrix.sum());
+        // println!("rust kde_sum = {:?}", self.kde_matrix.sum());
         return Ok(KDEModel {
             width: self.width,
             height: self.height,
             bin_width: self.bin_width,
-            data: self.kde_matrix.clone(),
+            data: self.kde_matrix.clone() + 2.220446049250313e-16,
         });
 
         let (x_cells, y_cells) = self.data.dim();
@@ -135,12 +159,12 @@ impl KDEGrid {
 
         let bandwidth = 1.0_f64;
         let bwf = self.bin_width as f64;
-        //eprintln!("5th print");
+
         let mut kde_matrix = Array2::<f64>::zeros((x_cells as usize, y_cells as usize));
         let radius_x = bwf; //x_centers[1] - x_centers[0];
         let radius_y = bwf; //y_centers[1] - y_centers[0];
 
-        let half_width = 5_i64;
+        let half_width = 10_i64;
         eprintln!("6th print");
         for i in 0..x_cells {
             //}(i, &u) in x_centers.iter().enumerate() {
@@ -290,4 +314,3 @@ pub fn kde_computation(
 
     Ok(())
 }
-

@@ -10,7 +10,7 @@ use std::io::{self, BufReader};
 pub fn kde_computation_py(
     data: &Vec<f64>,
     weight: &Vec<f64>,
-    //store: &mut InMemoryAlignmentStore,
+    bin_width: f64, //store: &mut InMemoryAlignmentStore,
 ) -> io::Result<Vec<f64>> {
     // Initialize the Python interpreter
     prepare_freethreaded_python();
@@ -24,8 +24,6 @@ pub fn kde_computation_py(
             "2D_kde_function.py",
         )?;
         let function = module.getattr("calculate_kde")?;
-        println!("data length is: {:?}", data.len());
-        println!("weight length is: {:?}", weight.len());
 
         // Example 2D data
         let data = Array2::from_shape_vec(((data.len() / 2), 2), data.to_vec()).unwrap();
@@ -41,10 +39,11 @@ pub fn kde_computation_py(
 
         // Call the Python function
         println!("it is before python function");
-        let result: Py<PyArray1<f64>> = function.call1((data_py, weights_py))?.extract()?;
+        let result: Py<PyArray1<f64>> = function
+            .call1((data_py, weights_py, bin_width))?
+            .extract()?;
         //println!("result length: {:?}", result.as_ref().len());
         let r: Vec<f64> = result.extract(py)?;
         Ok(r)
     })
 }
-

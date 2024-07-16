@@ -19,13 +19,13 @@ fn main() -> anyhow::Result<()> {
     kde_computation(&data, &weights)?;
     */
     let mut rng = rand::thread_rng();
-    let die = Uniform::from(10.0..100.0);
+    let die = Uniform::from(10.0..500.0);
     let weight_die = Uniform::from(1.0..10.0);
     let mut data = Vec::<f64>::with_capacity(200);
     let mut weights = Vec::<f64>::with_capacity(100);
     let mut weight_sum = 0_f64;
 
-    for _i in 0..100 {
+    for _i in 0..800 {
         let x: f64 = die.sample(&mut rng);
         let y: f64 = die.sample(&mut rng);
         data.push(x.round());
@@ -36,30 +36,30 @@ fn main() -> anyhow::Result<()> {
     }
 
     //python kde fucntion
-    let py_res = kde_computation_py(&data, &weights)?;
+    let py_res = kde_computation_py(&data, &weights, 5.0)?;
 
+    // curently have to normalize the weights for the rust impl
     weights.iter_mut().for_each(|x| {
         *x /= weight_sum;
     });
 
-    println!("total weights = {}", weights.iter().sum::<f64>());
-
-    println!("grid \n\n");
+    //println!("grid \n\n");
     let mut grid = crate::kde::KDEGrid::from_data_with_binwidth(
         &data.iter().map(|x| *x as u64).collect::<Vec<u64>>(),
         &weights,
-        10,
+        5,
     );
 
     let density = grid.evaluate_kde()?;
+    //println!("rust kde matrix: {:+e}", density.data);
 
     let mut lookups = Vec::<f64>::with_capacity(100);
     for chunk in data.chunks(2) {
         lookups.push(density[(chunk[0] as usize, chunk[1] as usize)]);
     }
-    println!("py: {:?}", py_res);
-    println!("rust: {:?}", lookups);
-    println!("total denisty of kde is : {}", density.sum());
+    //println!("py: {:?}", py_res);
+    //println!("rust: {:?}", lookups);
+    //println!("total denisty of kde is : {}", density.sum());
 
     use ordered_float::OrderedFloat;
     let a = py_res
@@ -73,6 +73,18 @@ fn main() -> anyhow::Result<()> {
 
     let (tau_b, significance) = kendalls::tau_b(&a, &b)?;
     println!("tau_b: {}, sig: {}", tau_b, significance);
+    /*
+    println!(
+        "diffs = {:?}",
+        a.iter()
+            .zip(b.iter())
+            .map(|(x, y)| {
+                let r: f64 = (*x - *y).into();
+                r
+            })
+            .collect::<Vec<f64>>()
+    );
+    */
     /*
     let mut grid = crate::kde::KDEGrid::new(6, 6, 1);
 
