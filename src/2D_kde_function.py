@@ -1,4 +1,4 @@
-from KDEpy import FFTKDE, TreeKDE
+from KDEpy import FFTKDE, TreeKDE, NaiveKDE
 import numpy as np
 from sklearn.model_selection import cross_val_score
 from sklearn.base import BaseEstimator
@@ -65,30 +65,37 @@ def calculate_kde(data, weights):
         err_num = 1
 
     xmin, xmax, ymin, ymax = min(data[:,0])-1., max(data[:,0])+1., min(data[:,1])-1., max(data[:,1])+1.
-    num_points_x = max(data[:,0]) - min(data[:,0]) + 3
-    num_points_y = max(data[:,1]) - min(data[:,1]) + 3
-    xx, yy = np.mgrid[xmin:xmax:num_points_x*1j, ymin:ymax:num_points_y*1j]
-    positions = np.vstack([xx.ravel(), yy.ravel()]).T
-
+    bin_width = 10.0
+    max_x = max(data[:, 0]) + bin_width
+    max_y = max(data[:, 1]) + bin_width
+    num_points_x = (max_x / bin_width) + 1
+    num_points_y = (max_y / bin_width) + 1
+    positions = (np.mgrid[0: max_x + 1 : num_points_x * 1j, 0: max_y + 1 : num_points_y * 1j] + 5).reshape(2, -1).T
+    #num_points_x = max(data[:,0]) - min(data[:,0]) + 3
+    #num_points_y = max(data[:,1]) - min(data[:,1]) + 3
+    #xx, yy = np.mgrid[xmin:xmax:num_points_x*1j, ymin:ymax:num_points_y*1j]
+    #positions = np.vstack([xx.ravel(), yy.ravel()]).T
+    print(positions)
 
     #print("Best bandwidth:", best_bandwidth)
     best_bandwidth = 1.0
 
     # Compute the kernel density estimate
-    kde = FFTKDE(kernel='gaussian', bw=best_bandwidth, norm=2)
+    kde = NaiveKDE(kernel='gaussian', bw=best_bandwidth, norm=2)
     #pdb.set_trace()
-    y = kde.fit(data, weights=weights).evaluate(positions)
+    x, y = kde.fit(data, weights=weights).evaluate(11)#positions)
 
     total_sum = y.sum()
-    print("kde length: {}".format(len(y)))
+    print(x)
+    #print("kde length: {}".format(len(y)))
     print("kde matrix: {}".format(y))
     print("kde sum: {}".format(total_sum))
-
+    
     #find the data indices in the positions vector
-    tree = cKDTree(positions)
-    distances, indices = tree.query(data, k=1)
-    threshold_distance = 1.0
-    filtered_indices = indices[distances < threshold_distance]
+    tree = cKDTree(x)
+    distances, filtered_indices = tree.query(data, k=1)
+    #threshold_distance = bin_width
+    #filtered_indices = indices[distances < threshold_distance]
 
     if len(data) != len(filtered_indices):
         err_num = 2

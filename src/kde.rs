@@ -11,6 +11,7 @@ pub struct KDEGrid {
     height: usize,
     bin_width: usize,
     data: Array2<f64>,
+    kde_matrix: Array2<f64>,
 }
 
 /// Yes, it has the same members as
@@ -57,6 +58,7 @@ impl KDEGrid {
             height,
             bin_width,
             data: Array2::zeros((num_x_bins, num_y_bins)),
+            kde_matrix: Array2::zeros((num_x_bins, num_y_bins)),
         }
     }
 
@@ -79,12 +81,54 @@ impl KDEGrid {
 
     #[inline(always)]
     pub fn add_observation(&mut self, x: usize, y: usize, w: f64) {
-        let bx = x / self.bin_width;
-        let by = y / self.bin_width;
-        self.data[[bx, by]] += w;
+        let bx = x as i64 / self.bin_width as i64;
+        let by = y as i64 / self.bin_width as i64;
+
+        let (x_cells, y_cells) = self.data.dim();
+        let x_cells = x_cells as i64;
+        let y_cells = y_cells as i64;
+
+        let bandwidth = 1.0_f64;
+        let bwf = self.bin_width as f64;
+        let radius_x = bwf;
+        let kernel_norm = 1.0 / (2.0 * PI * bandwidth.powi(2)).sqrt();
+        let half_width = 1_i64;
+        for i1 in (0.max(bx - half_width))..(x_cells.min(bx + half_width)) {
+            let k1 = bwf * i1 as f64 + ((bwf) / 2.0);
+            for j1 in (0.max(by - half_width))..(y_cells.min(by + half_width)) {
+                let k2 = bwf * j1 as f64 + ((bwf) / 2.0);
+                //println!("({}, {}) to ({}, {})", x, y, k1, k2);
+
+                let dx = k1 - x as f64;
+                let dy = k2 - y as f64;
+                let distance_sq = dx * dx + dy * dy;
+                let distance = distance_sq.sqrt();
+
+                let dweight = w; //self.data[[i1 as usize, j1 as usize]];
+
+                //if dx.abs() <= (10.0 * radius_x) as f64
+                //&& dy.abs() <= (10.0 * radius_y) as f64
+                //if distance <= 200.0 * radius_x {
+                let contrib =
+                    dweight * kernel_norm * (-distance_sq / (2.0 * bandwidth.powi(2))).exp();
+                self.kde_matrix[[i1 as usize, j1 as usize]] += contrib;
+                //}
+            }
+        }
+        //sum / ((2.0 * PI * bandwidth.powi(2)).sqrt())
+        // self.data[[bx, by]] += w;
     }
 
     pub fn evaluate_kde(&mut self) -> anyhow::Result<KDEModel> {
+        println!("{:?}", self.kde_matrix);
+        println!("rust kde_sum = {:?}", self.kde_matrix.sum());
+        return Ok(KDEModel {
+            width: self.width,
+            height: self.height,
+            bin_width: self.bin_width,
+            data: self.kde_matrix.clone(),
+        });
+
         let (x_cells, y_cells) = self.data.dim();
         let x_cells = x_cells as i64;
         let y_cells = y_cells as i64;
@@ -96,13 +140,14 @@ impl KDEGrid {
         let radius_x = bwf; //x_centers[1] - x_centers[0];
         let radius_y = bwf; //y_centers[1] - y_centers[0];
 
-        let half_width = 100_i64;
+        let half_width = 5_i64;
         eprintln!("6th print");
         for i in 0..x_cells {
             //}(i, &u) in x_centers.iter().enumerate() {
             let u = bwf * i as f64 + ((bwf) / 2.0);
             for j in 0..y_cells {
                 let v = bwf * j as f64 + ((bwf) / 2.0);
+                //println!("[({}, {})]", u, v);
                 let mut sum = 0.0;
                 let mut weigh_sum = 0.0;
                 for i1 in (0.max(i - half_width))..(x_cells.min(i + half_width)) {
@@ -112,14 +157,17 @@ impl KDEGrid {
 
                         let dx = k1 - u;
                         let dy = k2 - v;
-                        let distance = dx * dx + dy * dy;
-                        //if dx.abs() <= (30.0 * radius_x) as f64
-                        //   && dy.abs() <= (30.0 * radius_y) as f64
-                        //{
-                        sum += self.data[[i1 as usize, j1 as usize]]
-                            * (-distance / (2.0 * bandwidth.powi(2))).exp();
-                        weigh_sum += self.data[[i1 as usize, j1 as usize]]
-                        //}
+                        let distance_sq = dx * dx + dy * dy;
+                        let distance = distance_sq.sqrt();
+
+                        let dweight = self.data[[i1 as usize, j1 as usize]];
+
+                        //if dx.abs() <= (10.0 * radius_x) as f64
+                        //&& dy.abs() <= (10.0 * radius_y) as f64
+                        if distance <= 200.0 * radius_x {
+                            sum += dweight * (-distance_sq / (2.0 * bandwidth.powi(2))).exp();
+                            weigh_sum += 1.; //dweight;
+                        }
                     }
                 }
                 kde_matrix[[i as usize, j as usize]] = if weigh_sum > 0.0 {
@@ -133,7 +181,7 @@ impl KDEGrid {
         // Normalize kde_matrix
         //eprintln!("kde_matrix: {:?}", kde_matrix);
         let total_sum: f64 = kde_matrix.sum();
-        kde_matrix /= total_sum;
+        //kde_matrix /= total_sum;
         //eprintln!("kde_matrix2: {:?}", kde_matrix);
         eprintln!("kde summation: {:?}", kde_matrix.sum());
         //println!("{:?}", kde_matrix);

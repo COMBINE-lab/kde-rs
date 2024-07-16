@@ -19,26 +19,36 @@ fn main() -> anyhow::Result<()> {
     kde_computation(&data, &weights)?;
     */
     let mut rng = rand::thread_rng();
-    let die = Uniform::from(0.0..100.0);
+    let die = Uniform::from(10.0..100.0);
+    let weight_die = Uniform::from(1.0..10.0);
     let mut data = Vec::<f64>::with_capacity(200);
     let mut weights = Vec::<f64>::with_capacity(100);
-    for i in 0..200 {
+    let mut weight_sum = 0_f64;
+
+    for _i in 0..100 {
         let x: f64 = die.sample(&mut rng);
         let y: f64 = die.sample(&mut rng);
-        data.push(x);
-        data.push(y);
-        let w: f64 = rng.gen();
-        weights.push(w);
+        data.push(x.round());
+        data.push(y.round());
+        let w: f64 = weight_die.sample(&mut rng); //rng.gen();
+        weights.push(w.round());
+        weight_sum += weights.last().unwrap();
     }
 
     //python kde fucntion
     let py_res = kde_computation_py(&data, &weights)?;
 
+    weights.iter_mut().for_each(|x| {
+        *x /= weight_sum;
+    });
+
+    println!("total weights = {}", weights.iter().sum::<f64>());
+
     println!("grid \n\n");
     let mut grid = crate::kde::KDEGrid::from_data_with_binwidth(
         &data.iter().map(|x| *x as u64).collect::<Vec<u64>>(),
         &weights,
-        1,
+        10,
     );
 
     let density = grid.evaluate_kde()?;
