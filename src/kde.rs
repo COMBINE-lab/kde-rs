@@ -3,14 +3,22 @@
 //!
 //!  - All input locations are integers
 //!  - The only supported kernel is a symmetric Gaussian
-//!  - XXX
+//!  - Only 2D estimation is supported
 //!
 
 use core::f64::consts::PI;
 use ndarray::Array2;
 
+/// Value of `np.finfo(float).eps` taken from
+/// [KDEPy](https://github.com/tommyod/KDEpy/blob/d7bea3fa65c8a7373188983cf6767854be42c798/KDEpy/BaseKDE.py#L215C41-L215C60).
 const KDE_EPSILON: f64 = 2.220446049250313e-16;
 
+/// Records the dimensions of the grid on which
+/// estimation will be carried out.  The grid is
+/// always assumed to start at (0, 0), and so the
+/// width and height correspond to the maximal
+/// x and y values for which density will be
+/// estimated.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GridDimensions {
     pub width: usize,
@@ -55,17 +63,19 @@ impl KDEModel {
 
 impl std::ops::Index<(usize, usize)> for KDEModel {
     type Output = f64;
+    /// Returns the density estimtae associated with the provided
+    /// point `index`.  This model performs nearest-neighbor lookup
+    /// and so the reutrned estimate is just the KDE value recorded
+    /// at the nearest grid point.
     fn index(&self, index: (usize, usize)) -> &Self::Output {
         let blx = index.0 / self.bin_width;
         let bly = index.1 / self.bin_width;
-        /*
-        println!(
-            "d = {}",
-            ((index.0 as f64 - ((blx * self.bin_width) as f64 + 5.)).powi(2)
-                + (index.1 as f64 - ((bly * self.bin_width) as f64 + 5.)).powi(2))
-            .sqrt()
-        );*/
-        &self.data[[blx, bly]]
+        let (bins_x, bins_y) = self.data.dim();
+        if blx >= bins_x || bly >= bins_y {
+            &KDE_EPSILON
+        } else {
+            &self.data[[blx, bly]]
+        }
     }
 }
 
