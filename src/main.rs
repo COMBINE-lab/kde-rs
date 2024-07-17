@@ -15,7 +15,7 @@ fn main() -> anyhow::Result<()> {
     let mut weight_sum = 0_f64;
 
     let kernel_bandwidth = 5_f64;
-    let bin_width = 5_usize;
+    let bin_width = 10_usize;
 
     for _i in 0..2000 {
         let x: f64 = die.sample(&mut rng);
