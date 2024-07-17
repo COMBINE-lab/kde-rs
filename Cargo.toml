@@ -8,11 +8,13 @@ edition = "2021"
 [dependencies]
 ndarray = "0.15"
 ndarray-stats = "0.5.1"
-pyo3 = "0.21.2"
-numpy = "0.21.0"
 num = "0.4"
 anyhow = "1.0.86"
-rand = "0.8.5"
 itertools = "0.13.0"
+
+[dev-dependencies]
+pyo3 = "0.21.2"
+numpy = "0.21.0"
+rand = "0.8.5"
 kendalls = "0.2.2"
 ordered-float = "4.2.1"
