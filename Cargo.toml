@@ -1,5 +1,5 @@
 [package]
-name = "kde_function"
+name = "kders"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 ndarray = "0.15"
 ndarray-stats = "0.5.1"
-dashmap = "5.5.3"
 pyo3 = "0.21.2"
 numpy = "0.21.0"
 num = "0.4"
