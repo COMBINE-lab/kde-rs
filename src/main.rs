@@ -14,6 +14,9 @@ fn main() -> anyhow::Result<()> {
     let mut weights = Vec::<f64>::with_capacity(100);
     let mut weight_sum = 0_f64;
 
+    let kernel_bandwidth = 5_f64;
+    let bin_width = 5_usize;
+
     for _i in 0..2000 {
         let x: f64 = die.sample(&mut rng);
         let y: f64 = die.sample(&mut rng);
@@ -31,7 +34,13 @@ fn main() -> anyhow::Result<()> {
 
     //python kde fucntion
     let py_start = Instant::now();
-    let py_res = kde_computation_py(&data, &weights, 10.0, Some(2.0), Some(gd))?;
+    let py_res = kde_computation_py(
+        &data,
+        &weights,
+        bin_width as f64,
+        Some(kernel_bandwidth),
+        Some(gd),
+    )?;
     let py_duration = py_start.elapsed();
 
     // curently have to normalize the weights for the rust impl
@@ -51,7 +60,7 @@ fn main() -> anyhow::Result<()> {
     */
 
     let rust_start = Instant::now();
-    let mut grid = crate::kde::KDEGrid::new(gd, 10, Some(2.0));
+    let mut grid = crate::kde::KDEGrid::new(gd, bin_width, Some(kernel_bandwidth));
     for (chunk, w) in data.chunks(2).zip(weights.iter()) {
         grid.add_observation(chunk[0] as usize, chunk[1] as usize, *w);
     }

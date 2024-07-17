@@ -142,10 +142,12 @@ impl KDEGrid {
                 let dx = k1 - x as f64;
                 let dy = k2 - y as f64;
                 let distance_sq = dx * dx + dy * dy;
+                let distance = distance_sq.sqrt();
 
                 let dweight = w;
-                if distance_sq.sqrt() <= dist_thresh {
-                    let contrib = dweight * (-distance_sq / (2.0 * bandwidth)).exp() * kernel_norm;
+                let py_dist = distance / bandwidth;
+                if distance <= dist_thresh {
+                    let contrib = dweight * (-py_dist.powi(2) / 2.0).exp() * kernel_norm;
                     self.kde_matrix[[i1 as usize, j1 as usize]] += contrib;
                 }
             }
