@@ -1,54 +1,55 @@
 mod kde;
 mod kde_function;
-use crate::kde::kde_computation;
 use crate::kde_function::kde_computation_py;
 
-use itertools::*;
 use ordered_float::OrderedFloat;
 use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
-
-use std::io::{self, BufReader};
+use std::time::{Duration, Instant};
 
 fn main() -> anyhow::Result<()> {
-    /*
-    let data = vec![1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 5.0];
-    let weights = vec![1.0, 2.0, 3.0, 4.0];
-
-    //rust kde function
-    kde_computation(&data, &weights)?;
-    */
     let mut rng = rand::thread_rng();
     let die = Uniform::from(10.0..500.0);
-    let weight_die = Uniform::from(1.0..10.0);
     let mut data = Vec::<f64>::with_capacity(200);
     let mut weights = Vec::<f64>::with_capacity(100);
     let mut weight_sum = 0_f64;
 
-    for _i in 0..800 {
+    for _i in 0..2000 {
         let x: f64 = die.sample(&mut rng);
         let y: f64 = die.sample(&mut rng);
         data.push(x.round());
         data.push(y.round());
-        let w: f64 = weight_die.sample(&mut rng); //rng.gen();
+        let w: f64 = rng.gen();
         weights.push(w.round());
         weight_sum += weights.last().unwrap();
     }
 
     //python kde fucntion
-    let py_res = kde_computation_py(&data, &weights, 5.0)?;
+    let py_start = Instant::now();
+    let py_res = kde_computation_py(&data, &weights, 5.0, Some(1.0), Some(500), Some(500))?;
+    let py_duration = py_start.elapsed();
 
     // curently have to normalize the weights for the rust impl
+    /*
     weights.iter_mut().for_each(|x| {
         *x /= weight_sum;
     });
+    */
 
     //println!("grid \n\n");
+    /*
     let mut grid = crate::kde::KDEGrid::from_data_with_binwidth(
         &data.iter().map(|x| *x as u64).collect::<Vec<u64>>(),
         &weights,
         5,
     );
+    */
+
+    let rust_start = Instant::now();
+    let mut grid = crate::kde::KDEGrid::new(500, 500, 5, Some(1.0));
+    for (chunk, w) in data.chunks(2).zip(weights.iter()) {
+        grid.add_observation(chunk[0] as usize, chunk[1] as usize, *w);
+    }
 
     let density = grid.evaluate_kde()?;
     //println!("rust kde matrix: {:+e}", density.data);
@@ -57,11 +58,11 @@ fn main() -> anyhow::Result<()> {
     for chunk in data.chunks(2) {
         lookups.push(density[(chunk[0] as usize, chunk[1] as usize)]);
     }
+    let rust_duration = rust_start.elapsed();
     //println!("py: {:?}", py_res);
     //println!("rust: {:?}", lookups);
     //println!("total denisty of kde is : {}", density.sum());
 
-    use ordered_float::OrderedFloat;
     let a = py_res
         .iter()
         .map(|x| OrderedFloat(*x))
@@ -73,6 +74,11 @@ fn main() -> anyhow::Result<()> {
 
     let (tau_b, significance) = kendalls::tau_b(&a, &b)?;
     println!("tau_b: {}, sig: {}", tau_b, significance);
+    println!(
+        "time py: {}, time rust: {}",
+        py_duration.as_millis(),
+        rust_duration.as_millis()
+    );
     /*
     println!(
         "diffs = {:?}",

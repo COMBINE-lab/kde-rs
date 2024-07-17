@@ -4,9 +4,10 @@ from sklearn.model_selection import cross_val_score
 from sklearn.base import BaseEstimator
 import pdb
 from scipy.spatial import cKDTree
+import typing
 
-
-def calculate_kde(data, weights, bin_width):
+def calculate_kde(data, weights, bin_width, bandwidth: typing.Optional[float], max_x: typing.Optional[int], max_y: typing.Optional[int]):
+    #print(f"max_x = {max_x}, max_y = {max_y}")
     # class KDEpyWrapper(BaseEstimator):
     #    def __init__(self, bandwidth):
     #        self.bandwidth = bandwidth
@@ -61,16 +62,18 @@ def calculate_kde(data, weights, bin_width):
     if len(data) != len(weights):
         err_num = 1
 
-    xmin, xmax, ymin, ymax = (
-        min(data[:, 0]) - 1.0,
-        max(data[:, 0]) + 1.0,
-        min(data[:, 1]) - 1.0,
-        max(data[:, 1]) + 1.0,
-    )
-
     half_bin_width = bin_width / 2.0
-    max_x = ((max(data[:, 0]) + bin_width) // bin_width) * bin_width
-    max_y = ((max(data[:, 1]) + bin_width) // bin_width) * bin_width
+
+    if max_x is None:
+        max_x = ((max(data[:, 0]) + bin_width) // bin_width) * bin_width
+    else:
+        max_x = (max_x + bin_width // bin_width) * bin_width
+
+    if max_y is None:
+        max_y = ((max(data[:, 1]) + bin_width) // bin_width) * bin_width
+    else:
+        max_y = (max_y + bin_width // bin_width) * bin_width
+
     num_points_x = (max_x / bin_width) + 1
     num_points_y = (max_y / bin_width) + 1
 
@@ -89,13 +92,13 @@ def calculate_kde(data, weights, bin_width):
     # print(positions)
 
     # print("Best bandwidth:", best_bandwidth)
-    best_bandwidth = 1.0
+    best_bandwidth = 1.0 if bandwidth is None else bandwidth
 
     # Compute the kernel density estimate
     kde = NaiveKDE(kernel="gaussian", bw=best_bandwidth, norm=2)
     # pdb.set_trace()
     y = kde.fit(data, weights=weights).evaluate(positions)
-
+    y /= y.sum()
     # total_sum = y.sum()
     # print("kde length: {}".format(len(y)))
     # print("python kde matrix: {}".format(y))

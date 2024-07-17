@@ -10,15 +10,19 @@ use core::f64::consts::PI;
 use ndarray::prelude::*;
 use ndarray::Array2;
 
-use std::io::{self, BufReader};
+use std::io;
 
-/// Holds relevant information
+/// Holds relevant information about a
+/// grid of (weighted) samples and the
+/// eventual associated KDE matrix.
+///
 /// Assumes that the bin width is the
 /// same in both the x and y dimensions.
 pub struct KDEGrid {
     width: usize,
     height: usize,
     bin_width: usize,
+    bandwidth: f64,
     data: Array2<f64>,
     kde_matrix: Array2<f64>,
 }
@@ -34,7 +38,9 @@ pub struct KDEModel {
     pub data: Array2<f64>,
 }
 
+/// Functionality provided by the [KDEModel]
 impl KDEModel {
+    // The total weight of the model
     pub fn sum(&self) -> f64 {
         self.data.sum()
     }
@@ -57,7 +63,7 @@ impl std::ops::Index<(usize, usize)> for KDEModel {
 }
 
 impl KDEGrid {
-    pub fn new(width: usize, height: usize, bin_width: usize) -> Self {
+    pub fn new(width: usize, height: usize, bin_width: usize, bandwidth: Option<f64>) -> Self {
         let calc_num_bins = |extent: usize, bw: usize| -> usize {
             if extent % bw == 0 {
                 extent / bw
@@ -73,6 +79,7 @@ impl KDEGrid {
             width,
             height,
             bin_width,
+            bandwidth: bandwidth.unwrap_or(1.0),
             data: Array2::zeros((num_x_bins, num_y_bins)),
             kde_matrix: Array2::zeros((num_x_bins, num_y_bins)),
         }
@@ -88,21 +95,7 @@ impl KDEGrid {
             max_y = data[[i, 1]].max(max_y);
         }
 
-        let mut grid = Self::new((max_x + 1) as usize, (max_y + 1) as usize, bin_width);
-        /*
-        let (x_cells, y_cells) = grid.data.dim();
-        let x_cells = x_cells as i64;
-        let y_cells = y_cells as i64;
-
-        let bwf = grid.bin_width as f64;
-        for i in 0..x_cells {
-            let k1 = bwf * i as f64 + ((bwf) / 2.0);
-            for j in 0..y_cells {
-                let k2 = bwf * j as f64 + ((bwf) / 2.0);
-                println!("[{}, {}]", k1, k2);
-            }
-        }*/
-
+        let mut grid = Self::new((max_x + 1) as usize, (max_y + 1) as usize, bin_width, None);
         for i in 0..n {
             grid.add_observation(data[[i, 0]] as usize, data[[i, 1]] as usize, weights[i]);
         }
@@ -118,13 +111,15 @@ impl KDEGrid {
         let x_cells = x_cells as i64;
         let y_cells = y_cells as i64;
 
-        let bandwidth = 1.0_f64;
+        let bandwidth = self.bandwidth; //1.0_f64;
         let bwf = self.bin_width as f64;
         let half_bin_width = bwf / 2.0;
 
+        let dist_thresh = 10. * bandwidth; // 4 standard deviations
+
         // NOTE: missing sqrt below --- currently to match Python impl
         let kernel_norm = 1.0 / (2.0 * PI * bandwidth.powi(2));
-        let half_width = 10_i64;
+        let half_width = (dist_thresh / (self.bin_width as f64) + 1.) as i64;
         for i1 in (0.max(bx - half_width))..(x_cells.min(bx + half_width)) {
             let k1 = bwf * i1 as f64 + half_bin_width;
             for j1 in (0.max(by - half_width))..(y_cells.min(by + half_width)) {
@@ -136,8 +131,8 @@ impl KDEGrid {
                 let distance_sq = dx * dx + dy * dy;
 
                 let dweight = w;
-                if distance_sq.sqrt() < 20.0 {
-                    let contrib = dweight * (-distance_sq / 2.0).exp() * kernel_norm;
+                if distance_sq.sqrt() <= dist_thresh {
+                    let contrib = dweight * (-distance_sq / (2.0 * bandwidth)).exp() * kernel_norm;
                     self.kde_matrix[[i1 as usize, j1 as usize]] += contrib;
                 }
             }
@@ -146,11 +141,14 @@ impl KDEGrid {
 
     pub fn evaluate_kde(&mut self) -> anyhow::Result<KDEModel> {
         // println!("rust kde_sum = {:?}", self.kde_matrix.sum());
+        let mut new_kde_matrix = self.kde_matrix.clone() + 2.220446049250313e-16;
+        new_kde_matrix /= new_kde_matrix.sum();
+
         return Ok(KDEModel {
             width: self.width,
             height: self.height,
             bin_width: self.bin_width,
-            data: self.kde_matrix.clone() + 2.220446049250313e-16,
+            data: new_kde_matrix,
         });
 
         let (x_cells, y_cells) = self.data.dim();
