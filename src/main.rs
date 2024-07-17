@@ -5,7 +5,7 @@ use crate::kde_function::kde_computation_py;
 use ordered_float::OrderedFloat;
 use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 fn main() -> anyhow::Result<()> {
     let mut rng = rand::thread_rng();
@@ -24,9 +24,14 @@ fn main() -> anyhow::Result<()> {
         weight_sum += weights.last().unwrap();
     }
 
+    let gd = crate::kde::GridDimensions {
+        width: 500,
+        height: 500,
+    };
+
     //python kde fucntion
     let py_start = Instant::now();
-    let py_res = kde_computation_py(&data, &weights, 5.0, Some(1.0), Some(500), Some(500))?;
+    let py_res = kde_computation_py(&data, &weights, 10.0, Some(2.0), Some(gd))?;
     let py_duration = py_start.elapsed();
 
     // curently have to normalize the weights for the rust impl
@@ -46,7 +51,7 @@ fn main() -> anyhow::Result<()> {
     */
 
     let rust_start = Instant::now();
-    let mut grid = crate::kde::KDEGrid::new(500, 500, 5, Some(1.0));
+    let mut grid = crate::kde::KDEGrid::new(gd, 10, Some(2.0));
     for (chunk, w) in data.chunks(2).zip(weights.iter()) {
         grid.add_observation(chunk[0] as usize, chunk[1] as usize, *w);
     }

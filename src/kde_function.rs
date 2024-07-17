@@ -1,3 +1,4 @@
+use crate::kde::GridDimensions;
 use ndarray::Array2;
 use numpy::IntoPyArray;
 use numpy::{PyArray1, PyArray2};
@@ -11,8 +12,7 @@ pub fn kde_computation_py(
     weight: &[f64],
     bin_width: f64, //store: &mut InMemoryAlignmentStore,
     bandwidth: Option<f64>,
-    max_x: Option<usize>,
-    max_y: Option<usize>,
+    grid_dim: Option<GridDimensions>,
 ) -> io::Result<Vec<f64>> {
     // Initialize the Python interpreter
     prepare_freethreaded_python();
@@ -40,6 +40,10 @@ pub fn kde_computation_py(
         let weights_py: pyo3::Bound<'_, PyArray2<f64>> =
             weights.view().to_owned().into_pyarray_bound(py);
 
+        let (max_x, max_y) = match grid_dim {
+            Some(GridDimensions { width, height }) => (Some(width), Some(height)),
+            None => (None, None),
+        };
         // Call the Python function
         println!("it is before python function");
         let result: Py<PyArray1<f64>> = function
