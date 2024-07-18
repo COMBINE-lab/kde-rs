@@ -269,7 +269,7 @@ impl KDEGrid {
     /// [KDEGrid], the resulting density estimate is normalized, and
     /// a [KDEModel] is returned.  The result is `OK(`[KDEModel]`)`
     /// if a valid [KDEModel] can be returned, and [anyhow::Error] otherwise.
-    pub fn get_nearest_neighbor_kde(&mut self) -> anyhow::Result<KDEModel> {
+    pub fn get_kde(&mut self) -> anyhow::Result<KDEModel> {
         let mut new_kde_matrix = self.kde_matrix.clone() + KDE_EPSILON;
         new_kde_matrix /= new_kde_matrix.sum();
 
