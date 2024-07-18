@@ -80,6 +80,10 @@ impl std::ops::Index<(usize, usize)> for KDEModel {
 }
 
 impl KDEGrid {
+    /// Construct a new [KDEGrid] having the dimensions specified by `grid_dim`
+    /// with bins of width `bin_width`. Optionally, a bandwidth may be provided
+    /// via the `bandwidth` parameter; if [None] is provided, the bandwidth is
+    /// set to 1.
     pub fn new(grid_dim: GridDimensions, bin_width: usize, bandwidth: Option<f64>) -> Self {
         let calc_num_bins = |extent: usize, bw: usize| -> usize {
             if extent % bw == 0 {
@@ -103,7 +107,18 @@ impl KDEGrid {
     }
 
     #[allow(unused)]
-    pub fn from_data_with_binwidth(data: &[u64], weights: &[f64], bin_width: usize) -> Self {
+    /// Construct a new [KDEGrid] and populate it with the provided data and weights.
+    /// If the optional `grid_dim` argument is provided, it is used to set the grid
+    /// dimensions. Otherwise, the maxima within the `data` parameter are used.
+    /// Likewise, the optional bandwidth parameter can be passed, if None, the bandwidth
+    /// is set to 1.
+    pub fn from_data_with_binwidth(
+        data: &[u64],
+        weights: &[f64],
+        grid_dim: Option<GridDimensions>,
+        bin_width: usize,
+        bandwidth: Option<f64>,
+    ) -> Self {
         let n = data.len() / 2;
         let data = Array2::from_shape_vec(((data.len() / 2), 2), data.to_vec()).unwrap();
 
@@ -113,18 +128,25 @@ impl KDEGrid {
             max_y = data[[i, 1]].max(max_y);
         }
 
-        let gd = GridDimensions {
-            width: (max_x + 1) as usize,
-            height: (max_y + 1) as usize,
+        let gd = match grid_dim {
+            Some(GridDimensions { width, height }) => grid_dim.unwrap(),
+            None => GridDimensions {
+                width: (max_x + 1) as usize,
+                height: (max_y + 1) as usize,
+            },
         };
 
-        let mut grid = Self::new(gd, bin_width, None);
+        let mut grid = Self::new(gd, bin_width, bandwidth);
         for i in 0..n {
             grid.add_observation(data[[i, 0]] as usize, data[[i, 1]] as usize, weights[i]);
         }
         grid
     }
 
+    /// Adds the weighted observation at position (`x`, `y`) to the current
+    /// [KDEGrid] with weight `w`.  **Note**: If (`x`, `y`) is outside of the
+    /// bounds of this [KDEGrid], then no contribution is added (i.e. this point
+    /// is skipped).
     #[inline(always)]
     pub fn add_observation(&mut self, x: usize, y: usize, w: f64) {
         let bx = x as i64 / self.bin_width as i64;
@@ -134,7 +156,12 @@ impl KDEGrid {
         let x_cells = x_cells as i64;
         let y_cells = y_cells as i64;
 
-        let bandwidth = self.bandwidth; //1.0_f64;
+        // exit if this point is out of bounds
+        if bx >= x_cells || by >= y_cells {
+            return;
+        }
+
+        let bandwidth = self.bandwidth;
         let bwf = self.bin_width as f64;
         let half_bin_width = bwf / 2.0;
 
@@ -164,8 +191,11 @@ impl KDEGrid {
         }
     }
 
+    /// This function is called once all points have been added to the
+    /// [KDEGrid], the resulting density estimate is normalized, and
+    /// a [KDEModel] is returned.  The result is `OK(`[KDEModel]`)`
+    /// if a valid [KDEModel] can be returned, and [anyhow::Error] otherwise.
     pub fn evaluate_kde(&mut self) -> anyhow::Result<KDEModel> {
-        // println!("rust kde_sum = {:?}", self.kde_matrix.sum());
         let mut new_kde_matrix = self.kde_matrix.clone() + KDE_EPSILON;
         new_kde_matrix /= new_kde_matrix.sum();
 
