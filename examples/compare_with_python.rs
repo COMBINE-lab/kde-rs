@@ -120,7 +120,7 @@ fn main() -> anyhow::Result<()> {
         grid.add_observation(chunk[0] as usize, chunk[1] as usize, *w);
     }
 
-    let density = grid.get_nearest_neighbor_kde()?;
+    let density = grid.get_kde()?;
     //println!("rust kde matrix: {:+e}", density.data);
 
     let mut lookups = Vec::<f64>::with_capacity(100);

@@ -59,6 +59,7 @@ impl KDEModel {
         self.data.sum()
     }
 
+    #[inline(always)]
     pub fn try_query_bin(&self, query: (i64, i64)) -> Option<f64> {
         let (bins_x, bins_y) = self.data.dim();
         let (x, y) = query;
@@ -76,6 +77,7 @@ impl std::ops::Index<(usize, usize)> for KDEModel {
     /// point `index`.  This model performs nearest-neighbor lookup
     /// and so the reutrned estimate is just the KDE value recorded
     /// at the nearest grid point.
+    #[inline(always)]
     fn index(&self, index: (usize, usize)) -> &Self::Output {
         let blx = index.0 / self.bin_width;
         let bly = index.1 / self.bin_width;
@@ -94,6 +96,7 @@ impl KDEModel {
     /// and so the reutrned estimate is the weighted average
     /// of the neighboring grid points.
     #[allow(dead_code)]
+    #[inline(always)]
     pub fn query_interp(&self, index: (usize, usize)) -> f64 {
         // the actual bin in which our query point falls must be valid
         let blx = index.0 / self.bin_width;
