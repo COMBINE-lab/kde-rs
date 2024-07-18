@@ -40,20 +40,20 @@ pub struct KDEGrid {
     kde_matrix: Array2<f64>,
 }
 
-/// Yes, it has the same members as
-/// the [KDEGrid] but this is the
-/// evaluated density, not the observed
-/// weights
+/// A "nearest-neighbor" KDE model that
+/// returns the estimate for each queried
+/// point as the density at the grid point
+/// closest to this query.
 #[allow(unused)]
-pub struct KDEModel {
+pub struct NNKDEModel {
     width: usize,
     height: usize,
     bin_width: usize,
     pub data: Array2<f64>,
 }
 
-/// Functionality provided by the [KDEModel]
-impl KDEModel {
+/// Functionality provided by the [NNKDEModel]
+impl NNKDEModel {
     // The total weight of the model
     #[allow(unused)]
     pub fn sum(&self) -> f64 {
@@ -61,7 +61,7 @@ impl KDEModel {
     }
 }
 
-impl std::ops::Index<(usize, usize)> for KDEModel {
+impl std::ops::Index<(usize, usize)> for NNKDEModel {
     type Output = f64;
     /// Returns the density estimtae associated with the provided
     /// point `index`.  This model performs nearest-neighbor lookup
@@ -193,13 +193,13 @@ impl KDEGrid {
 
     /// This function is called once all points have been added to the
     /// [KDEGrid], the resulting density estimate is normalized, and
-    /// a [KDEModel] is returned.  The result is `OK(`[KDEModel]`)`
-    /// if a valid [KDEModel] can be returned, and [anyhow::Error] otherwise.
-    pub fn evaluate_kde(&mut self) -> anyhow::Result<KDEModel> {
+    /// a [NNKDEModel] is returned.  The result is `OK(`[NNKDEModel]`)`
+    /// if a valid [NNKDEModel] can be returned, and [anyhow::Error] otherwise.
+    pub fn get_nearest_neighbor_kde(&mut self) -> anyhow::Result<NNKDEModel> {
         let mut new_kde_matrix = self.kde_matrix.clone() + KDE_EPSILON;
         new_kde_matrix /= new_kde_matrix.sum();
 
-        Ok(KDEModel {
+        Ok(NNKDEModel {
             width: self.width,
             height: self.height,
             bin_width: self.bin_width,
