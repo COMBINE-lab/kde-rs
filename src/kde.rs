@@ -40,28 +40,37 @@ pub struct KDEGrid {
     kde_matrix: Array2<f64>,
 }
 
-/// A "nearest-neighbor" KDE model that
-/// returns the estimate for each queried
-/// point as the density at the grid point
-/// closest to this query.
+/// A KDE model that returns the estimate for each queried
+/// point.
 #[allow(unused)]
-pub struct NNKDEModel {
+pub struct KDEModel {
     width: usize,
     height: usize,
     bin_width: usize,
+    bandwidth: f64,
     pub data: Array2<f64>,
 }
 
-/// Functionality provided by the [NNKDEModel]
-impl NNKDEModel {
+/// Functionality provided by the [KDEModel]
+impl KDEModel {
     // The total weight of the model
     #[allow(unused)]
     pub fn sum(&self) -> f64 {
         self.data.sum()
     }
+
+    pub fn try_query_bin(&self, query: (i64, i64)) -> Option<f64> {
+        let (bins_x, bins_y) = self.data.dim();
+        let (x, y) = query;
+        if x >= 0 && y >= 0 && (x as usize) < bins_x && (y as usize) < bins_y {
+            Some(self.data[[x as usize, y as usize]])
+        } else {
+            None
+        }
+    }
 }
 
-impl std::ops::Index<(usize, usize)> for NNKDEModel {
+impl std::ops::Index<(usize, usize)> for KDEModel {
     type Output = f64;
     /// Returns the density estimtae associated with the provided
     /// point `index`.  This model performs nearest-neighbor lookup
@@ -75,6 +84,70 @@ impl std::ops::Index<(usize, usize)> for NNKDEModel {
             &KDE_EPSILON
         } else {
             &self.data[[blx, bly]]
+        }
+    }
+}
+
+impl KDEModel {
+    /// Returns the density estimtae associated with the provided
+    /// point `index`.  This model performs interpolated lookup
+    /// and so the reutrned estimate is the weighted average
+    /// of the neighboring grid points.
+    #[allow(dead_code)]
+    pub fn query_interp(&self, index: (usize, usize)) -> f64 {
+        // the actual bin in which our query point falls must be valid
+        let blx = index.0 / self.bin_width;
+        let bly = index.1 / self.bin_width;
+        let (bins_x, bins_y) = self.data.dim();
+        if blx >= bins_x || bly >= bins_y {
+            KDE_EPSILON
+        } else {
+            let bandwidth = self.bandwidth;
+            let bw_sq = bandwidth * bandwidth;
+            let bwf = self.bin_width as f64;
+            let half_bin_width = (bwf) / 2.;
+            let kernel_norm = 1.0 / (2.0 * PI * bw_sq);
+            let sq_distance = |x: f64, y: f64, nx: i64, ny: i64| {
+                let px = (nx as f64 * bwf) + half_bin_width;
+                let py = (ny as f64 * bwf) + half_bin_width;
+                let dx = x - px;
+                let dy = y - py;
+                dx * dx + dy * dy
+            };
+            // here the query bin is valid, so get the neighboring bins.
+            let blx = blx as i64;
+            let bly = bly as i64;
+            let left = blx - 1;
+            let right = blx + 1;
+            let down = bly - 1;
+            let up = bly + 1;
+            let x = index.0 as f64;
+            let y = index.1 as f64;
+            let mut weighted_density = 0_f64;
+            let mut denom = 0_f64;
+            // neighbors to query
+            for (nx, ny) in [
+                (blx, bly),
+                (left, bly),
+                (right, bly),
+                (blx, down),
+                (blx, up),
+                (left, down),
+                (right, down),
+                (left, up),
+                (right, up),
+            ] {
+                if let Some(sample_d) = self.try_query_bin((nx, ny)) {
+                    let weight = ((sq_distance(x, y, nx, ny) / bw_sq) * 0.5).exp() * kernel_norm;
+                    denom += weight;
+                    weighted_density += sample_d * weight;
+                }
+            }
+            if denom > 0. {
+                weighted_density / denom
+            } else {
+                KDE_EPSILON
+            }
         }
     }
 }
@@ -166,6 +239,7 @@ impl KDEGrid {
         let half_bin_width = bwf / 2.0;
 
         let dist_thresh = 10. * bandwidth; // number of standard deviations
+        let bw_sq = bandwidth * bandwidth;
 
         // NOTE: missing sqrt below --- currently to match Python impl
         let kernel_norm = 1.0 / (2.0 * PI * bandwidth.powi(2));
@@ -182,9 +256,9 @@ impl KDEGrid {
                 let distance = distance_sq.sqrt();
 
                 let dweight = w;
-                let py_dist = distance / bandwidth;
+                let py_dist_sq = distance_sq / bw_sq;
                 if distance <= dist_thresh {
-                    let contrib = dweight * (-py_dist.powi(2) / 2.0).exp() * kernel_norm;
+                    let contrib = dweight * (-py_dist_sq / 2.0).exp() * kernel_norm;
                     self.kde_matrix[[i1 as usize, j1 as usize]] += contrib;
                 }
             }
@@ -193,16 +267,17 @@ impl KDEGrid {
 
     /// This function is called once all points have been added to the
     /// [KDEGrid], the resulting density estimate is normalized, and
-    /// a [NNKDEModel] is returned.  The result is `OK(`[NNKDEModel]`)`
-    /// if a valid [NNKDEModel] can be returned, and [anyhow::Error] otherwise.
-    pub fn get_nearest_neighbor_kde(&mut self) -> anyhow::Result<NNKDEModel> {
+    /// a [KDEModel] is returned.  The result is `OK(`[KDEModel]`)`
+    /// if a valid [KDEModel] can be returned, and [anyhow::Error] otherwise.
+    pub fn get_nearest_neighbor_kde(&mut self) -> anyhow::Result<KDEModel> {
         let mut new_kde_matrix = self.kde_matrix.clone() + KDE_EPSILON;
         new_kde_matrix /= new_kde_matrix.sum();
 
-        Ok(NNKDEModel {
+        Ok(KDEModel {
             width: self.width,
             height: self.height,
             bin_width: self.bin_width,
+            bandwidth: self.bandwidth,
             data: new_kde_matrix,
         })
     }
