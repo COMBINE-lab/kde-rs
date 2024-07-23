@@ -44,8 +44,8 @@ pub struct KDEGrid {
 /// point.
 #[allow(unused)]
 pub struct KDEModel {
-    width: usize,
-    height: usize,
+    pub width: usize,
+    pub height: usize,
     bin_width: usize,
     bandwidth: f64,
     pub data: Array2<f64>,
