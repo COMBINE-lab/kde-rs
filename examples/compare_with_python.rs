@@ -62,7 +62,7 @@ pub fn kde_computation_py(
 fn main() -> anyhow::Result<()> {
     let mut rng = rand::thread_rng();
 
-    let max_val = 3000;
+    let max_val = 1000;
 
     let die = Uniform::from(10.0..(max_val as f64));
     let mut data = Vec::<f64>::with_capacity(200);
@@ -72,7 +72,7 @@ fn main() -> anyhow::Result<()> {
     let kernel_bandwidth = 5_f64;
     let bin_width = 10_usize;
 
-    for _i in 0..5000 {
+    for _i in 0..1000 {
         let x: f64 = die.sample(&mut rng);
         let y: f64 = die.sample(&mut rng);
         data.push(x.round());
@@ -120,11 +120,12 @@ fn main() -> anyhow::Result<()> {
         grid.add_observation(chunk[0] as usize, chunk[1] as usize, *w);
     }
 
-    let density = grid.evaluate_kde()?;
+    let density = grid.get_kde()?;
     //println!("rust kde matrix: {:+e}", density.data);
 
     let mut lookups = Vec::<f64>::with_capacity(100);
     for chunk in data.chunks(2) {
+        //lookups.push(density.query_interp((chunk[0] as usize, chunk[1] as usize)));
         lookups.push(density[(chunk[0] as usize, chunk[1] as usize)]);
     }
     let rust_duration = rust_start.elapsed();
