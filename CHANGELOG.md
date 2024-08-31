@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/COMBINE-lab/kde-rs/compare/v0.1.0...v0.1.1) - 2024-08-31
+
+### Fixed
+- bump deps
+
+### Other
+- Merge pull request [#5](https://github.com/COMBINE-lab/kde-rs/pull/5) from COMBINE-lab/main
+
 ## [0.1.0](https://github.com/COMBINE-lab/kde-rs/releases/tag/v0.1.0) - 2024-07-29
 
 ### Added
