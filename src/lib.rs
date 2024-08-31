@@ -5,13 +5,15 @@
 //!
 //! # Example
 //! ```
-//! use kders::kde;
+//! use kders::{kde, kde::GridDimensions};
+//! use rand::prelude::*;
+//! use rand::{distributions::Uniform, Rng};
 //!
 //! // create a grid on the range [0, 100]x[0, 100] with bins
 //! // of width 5 and a kernel bandwidth of 2.
 //! let mut rng = rand::thread_rng();
 //! let die = Uniform::from(10.0..100.);
-//! let mut g = kde::KDEGrid(GridDimension{ 100, 100 }, 5, Some(2.0));
+//! let mut g = kde::KDEGrid::new(GridDimensions{ width: 100, height: 100 }, 5, Some(2.0));
 //!
 //! // add 100 random observations
 //! for _i in 0..100 {
@@ -21,7 +23,7 @@
 //! }
 //! // obtain the density grid on which we'll evaluate our queries
 //!
-//! let density = g.get_kde()?;
+//! let density = g.get_kde().unwrap();
 //! // lookup the density at some points
 //! let a = density[(10_usize, 10_usize)];
 //! let b = density[(10_usize, 25_usize)];
